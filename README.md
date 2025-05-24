@@ -83,6 +83,8 @@ python3 generate_plots.py
 
 ## Compare models
 
+You need a `november_rates_1sec.csv` file with the exchange rates. Then the following script will fit a GBM model with jumps. Turn off the jumps with `--no-q`.
+
 ```bash
 bash real_world_integrator.sh
 ```
