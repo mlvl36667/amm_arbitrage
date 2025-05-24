@@ -64,6 +64,8 @@ python3 extract_trade_region.py
 
 ## Output Description
 
+The outputs of the execution are as follows:
+
 *    iteration_solver: The compiled C++ executable programme.
 *    simulation_results/ Directory:
 *    log_S<sigma>_M<mu>_G<gamma>_QH<q>_P<p>.txt: Contains the standard output and error streams (log messages, warnings, etc.) from each individual run of iteration_solver. The filename reflects the parameters used.
