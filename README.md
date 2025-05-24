@@ -27,17 +27,13 @@ The C++ code (`integrator.cpp`) iteratively calculates a probability density fun
 
 ### 1. Setup and Compilation
 
-The `run_integrator.sh` script handles the compilation of the C++ code. Before running, ensure the script is executable:
-```bash
-chmod +x run_integrator.sh
-```
-
+The `run_integrator.sh` script handles the compilation of the C++ code. The number of OpenMP threads can be set using OMP_THREADS in `run_integrator.sh`.
 
 ### 2. Running Simulations
 
 To execute the simulation suite, run the Bash script:
 ```bash
-./run_integrator.sh
+bash ./run_integrator.sh
 ```
 
 This script will perform the following actions:
