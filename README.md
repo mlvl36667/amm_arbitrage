@@ -88,5 +88,9 @@ bash real_world_integrator.sh
 ```
 
 ```bash
+bash real_world_integrator.sh --no-q
+```
+
+```bash
 python3  compare_models.py
 ```
