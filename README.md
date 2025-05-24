@@ -67,7 +67,7 @@ python3 extract_trade_region.py
 The outputs of the execution are as follows:
 
 *    iteration_solver: The compiled C++ executable programme.
-*    simulation_results/ Directory: log_S<sigma>_M<mu>_G<gamma>_QH<q>_P.txt: Contains the standard output and error streams (log messages, warnings, etc.) from each individual run of iteration_solver. The filename reflects the parameters used.
+*    simulation_results/ Directory: log_*.txt: Contains the standard output and error streams (log messages, warnings, etc.) from each individual run of iteration_solver. The filename reflects the parameters used.
 *    f_out_S<sigma>_M<mu>_G<gamma>_QH<q>_P.csv: A CSV file for each parameter combination, containing the x-grid values and the corresponding values of the iterated density functions (f0, f1, ..., fN).
 *    tails_ratios/ Directory: tails_ratio_Q_P<p>_GP<gamma>_GM<gamma>_CS<sigma>_CM<mu>.txt: Text files, each containing a single floating-point number representing the calculated "tails ratio percentage" for a specific parameter set, as output by iteration_solver.
 *    extra_calc_Q<q>_P<p>_GP<gamma>_GM<gamma>_CS<sigma>_CM<mu>_Th<theta>.txt: Text files containing additional calculated terms (like c1, c2, and components of the extra cost terms) for specific parameter sets, as output by iteration_solver.
