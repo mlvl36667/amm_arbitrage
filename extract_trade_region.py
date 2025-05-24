@@ -84,7 +84,7 @@ def parse_filename_and_get_ratio(filepath):
 
 
 def main():
-    search_dir = "."
+    search_dir = "./tails_ratios"
 
     print(f"Searching for files in the '{search_dir}' directory (with Q=0.0 condition, P != 0.05)...")
     print("-" * 70)
