@@ -1,5 +1,5 @@
       
-# Numerical Simulation for Optimal Liquidation Model
+# Numerical solver to obtain the stationary density of the mispricing process
 
 This repository provides C++ code, a Bash runner script, and a Python analysis script for numerically solving aspects arbitrage opportunities in on-chain AMMs on Ethereum 2.0. 
 
