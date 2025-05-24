@@ -30,12 +30,15 @@ The C++ code (`integrator.cpp`) iteratively calculates a probability density fun
 The `run_integrator.sh` script handles the compilation of the C++ code. Before running, ensure the script is executable:
 ```bash
 chmod +x run_integrator.sh
+```
+
 
 ### 2. Running Simulations
 
 To execute the simulation suite, run the Bash script:
 ```bash
 ./run_integrator.sh
+```
 
 This script will perform the following actions:
 
@@ -57,12 +60,13 @@ Parameters such as OMP_THREADS, FIXED_SIGMA, GAMMA_BP_VALUES, Q_VALUES, and P_EX
 
 ## 3. Analysing Results
 
-After the run_integrator.sh script has completed its runs, the tails_ratios/ directory will contain the summary output files. The extract_trade_region.py script can then be used to parse these files, specifically focusing on tails_ratio_*.txt files where the Q parameter was 0.0 and the P parameter was not 0.05. It prints a formatted summary to the console.
+After the \`run_integrator.sh\` script has completed its runs, the \`tails_ratios/\` directory will contain the summary output files. The \`extract_trade_region.py\` script can then be used to parse these files, specifically focusing on \`tails_ratio_*.txt\` files where the Q parameter was \`0.0\` and the P parameter was not \`0.05\`. It prints a formatted summary to the console.
 
 Run the Python analysis script using:
 
 ```bash
 python3 extract_trade_region.py
+```
 
     
 
