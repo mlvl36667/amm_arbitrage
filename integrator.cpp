@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib> // For std::getenv, std::stod
+#include <filesystem>   // For file system operations (C++17 and later)
 #include <fstream>
 #include <functional>
 #include <iomanip>
@@ -18,6 +19,55 @@
 constexpr double PI_CONST = std::numbers::pi;
 constexpr double SQRT_2PI = std::sqrt(2.0 * PI_CONST);
 
+int get_int_from_env(const char* env_var_name, int default_value) {
+    const char* env_val_str = std::getenv(env_var_name);
+    if (env_val_str == nullptr) {
+        std::cout << "INFO: Environment variable '" << env_var_name
+                  << "' not set. Using default value: " << default_value << std::endl;
+        return default_value;
+    }
+    try {
+        // std::string s(env_val_str); // Create string for stoi
+        // size_t processed_chars;
+        // int value = std::stoi(s, &processed_chars);
+        // if (processed_chars < s.length()) { // Check if the whole string was processed
+        //     std::cerr << "WARNING: Trailing characters for environment variable '" << env_var_name
+        //               << "'. Value: '" << env_val_str << "'. Using default value: "
+        //               << default_value << std::endl;
+        //     return default_value;
+        // }
+        // More robust: use strtol and check for errors and unprocessed characters
+        char* end_ptr;
+        long val_long = std::strtol(env_val_str, &end_ptr, 10);
+
+        if (env_val_str == end_ptr || *end_ptr != '\0') { // No conversion or trailing chars
+            std::cerr << "WARNING: Invalid integer format for environment variable '" << env_var_name
+                      << "'. Value: '" << env_val_str << "'. Using default value: "
+                      << default_value << std::endl;
+            return default_value;
+        }
+        if (val_long > std::numeric_limits<int>::max() || val_long < std::numeric_limits<int>::min()) {
+             std::cerr << "WARNING: Value out of range for int for environment variable '" << env_var_name
+                      << "'. Value: '" << env_val_str << "'. Using default value: "
+                      << default_value << std::endl;
+            return default_value;
+        }
+        int value = static_cast<int>(val_long);
+        std::cout << "INFO: Using value from environment variable '" << env_var_name
+                  << "': " << value << std::endl;
+        return value;
+    } catch (const std::invalid_argument& ia) { // Should be caught by strtol checks
+        std::cerr << "WARNING: Invalid argument for environment variable '" << env_var_name
+                  << "'. Value: '" << env_val_str << "'. Not a valid integer. Using default value: "
+                  << default_value << std::endl;
+        return default_value;
+    } catch (const std::out_of_range& oor) { // Should be caught by strtol checks
+        std::cerr << "WARNING: Value out of range for environment variable '" << env_var_name
+                  << "'. Value: '" << env_val_str << "'. Using default value: "
+                  << default_value << std::endl;
+        return default_value;
+    }
+}
 // Retrieves a double value from an environment variable.
 // If the variable is not set or invalid, returns a default value.
 double get_double_from_env(const char* env_var_name, double default_value) {
@@ -407,13 +457,13 @@ int main() {
 
     // The number of iterations determines how many f_k functions are generated.
     // f_history[0] will be f0, f_history[num_iterations-1] will be f_(num_iterations-1).
-    int num_iterations = 100; // Number of functions to generate (f0, f1, ..., f99)
 
     // 2. Define grid (x_grid)
     std::vector<double> x_grid_values;
-    double x_min = -0.0200;
-    double x_max = 0.0200;
-    int n_points_grid = 3201;
+    double x_min   = get_double_from_env("X_MIN", -0.002);
+    double x_max   = get_double_from_env("X_MAX", 0.002);
+    int n_points_grid = get_int_from_env("N_POINTS_GRID", 3201);
+    int num_iterations = get_int_from_env("NUM_ITERATIONS", 100);
     double dx_grid = (x_max - x_min) / (n_points_grid - 1);
     for (int i = 0; i < n_points_grid; ++i) {
         x_grid_values.push_back(x_min + i * dx_grid);
@@ -586,24 +636,60 @@ int main() {
             double tails_ratio = (total_integral == 0) ? 0 : (tails_integral_sum / total_integral);
 
             std::cout << "Aggregated 'tail' integral (left + right): " << std::fixed << std::setprecision(10) << tails_integral_sum << std::endl;
-            std::cout << "Ratio of 'tail' areas to the total integral: "
-                      << tails_ratio << " (i.e., " << tails_ratio * 100.0 << "%)" << std::endl;
-            std::cout.unsetf(std::ios_base::floatfield);
-            
-            double tails_ratio_percentage = tails_ratio * 100.0;
-            std::ostringstream filename_body_sstr;
-            filename_body_sstr << std::fixed << std::setprecision(8); // Precision for filename parts
-            filename_body_sstr << "tails_ratio_Q" << q_for_h_param
-                               << "_P" << p_probability_param
-                               << "_GP" << gamma_plus_param
-                               << "_GM" << gamma_minus_param
-                               << "_CS" << const_sigma_param // Using original value for filename
-                               << "_CM" << const_mu_param;    // Using original value for filename
-            std::string filename_body = filename_body_sstr.str();
-            std::replace(filename_body.begin(), filename_body.end(), '.', 'p'); // Replace '.' with 'p'
-            std::string ratio_filename = filename_body + ".txt";
+              std::cout << "Ratio of 'tail' areas to the total integral: "
+                        << tails_ratio << " (i.e., " << tails_ratio * 100.0 << "%)" << std::endl;
+              std::cout.unsetf(std::ios_base::floatfield);
+  
+              double tails_ratio_percentage = tails_ratio * 100.0;
+              std::ostringstream filename_body_sstr;
+              filename_body_sstr << std::fixed << std::setprecision(8); // Precision for filename parts
+              filename_body_sstr << "tails_ratio_Q" << q_for_h_param
+                                 << "_P" << p_probability_param
+                                 << "_GP" << gamma_plus_param
+                                 << "_GM" << gamma_minus_param
+                                 << "_CS" << const_sigma_param
+                                 << "_CM" << const_mu_param;
+              std::string filename_body = filename_body_sstr.str();
+              std::replace(filename_body.begin(), filename_body.end(), '.', 'p');
+              std::string ratio_filename = filename_body + ".txt";
 
-            std::ofstream outfile_ratio(ratio_filename);
+              // --- Step 1: Write and close the file ---
+              std::ofstream outfile_ratio(ratio_filename);
+              if (outfile_ratio.is_open()) {
+                  outfile_ratio << std::fixed << std::setprecision(10);
+                  outfile_ratio << tails_ratio_percentage << std::endl;
+                  outfile_ratio.close(); // Close the file
+                  std::cout << "Tails ratio successfully written to ./" << ratio_filename << std::endl; // Clarify current dir
+
+                  // --- Step 2: Now attempt to move the closed file ---
+                  try {
+                      std::filesystem::path source_file_path = ratio_filename; // Path relative to CWD
+                      std::filesystem::path target_directory_path = "tails_ratios";
+      
+                      if (!std::filesystem::exists(target_directory_path)) {
+                          if (std::filesystem::create_directories(target_directory_path)) {
+                              std::cout << "INFO: Created directory: " << target_directory_path.string() << std::endl;
+                          } else {
+                              std::cerr << "ERROR: Could not create directory: " << target_directory_path.string() << std::endl;
+                              // Optionally, you might want to skip the move if directory creation fails
+                          }
+                      }
+      
+                      std::filesystem::path destination_file_path = target_directory_path / source_file_path.filename();
+      
+                      std::filesystem::rename(source_file_path, destination_file_path);
+                      std::cout << "Successfully moved " << source_file_path.string()
+                                << " to " << destination_file_path.string() << std::endl;
+      
+                  } catch (const std::filesystem::filesystem_error& e) {
+                      std::cerr << "ERROR: Filesystem operation failed. Could not move file '" << ratio_filename
+                                << "' to 'tails_ratios/' directory. Reason: " << e.what() << std::endl;
+                      std::cerr << "Details: error code " << e.code() << ", path1: '" << e.path1().string() << "', path2: '" << e.path2().string() << "'" << std::endl;
+                  }
+              } else {
+                  std::cerr << "Error: Failed to open " << ratio_filename << " for writing. File cannot be moved." << std::endl;
+              }
+
             if (outfile_ratio.is_open()) {
                 outfile_ratio << std::fixed << std::setprecision(10); // Precision for file content
                 outfile_ratio << tails_ratio_percentage << std::endl;
