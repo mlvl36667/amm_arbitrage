@@ -1,7 +1,7 @@
       
 # Numerical Simulation for Optimal Liquidation Model
 
-This repository provides C++ code, a Bash runner script, and a Python analysis script for numerically solving aspects of an optimal liquidation model in a limit order book. The methodology and model are related to the research presented in:
+This repository provides C++ code, a Bash runner script, and a Python analysis script for numerically solving aspects arbitrage opportunities in on-chain AMMs on Ethereum 2.0. 
 
 The C++ code (`integrator.cpp`) iteratively calculates a probability density function according to the model. The Bash script (`run_integrator.sh`) automates the compilation and execution of these simulations over a range of parameters. The Python script (`extract_trade_region.py`) then parses specific output files to summarise key metrics.
 
