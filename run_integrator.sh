@@ -30,17 +30,17 @@ export CONST_SIGMA="0.05"
 # MU is calculated based on CONST_SIGMA later
 
 # Grid and Iteration Parameters (exported for the C++ program)
-export X_MIN="-0.002" # Fixed X_MIN
-export X_MAX="0.002" # Fixed X_MAX
+export X_MIN="-0.02" # Fixed X_MIN
+export X_MAX="0.02" # Fixed X_MAX
 # N_POINTS_GRID will be looped over
-export NUM_ITERATIONS="100" # Fixed NUM_ITERATIONS
+export NUM_ITERATIONS="4000" # Fixed NUM_ITERATIONS
 
 # Fixed SIGMA value (used for MU calculation and parameter sweeps)
 FIXED_SIGMA="${CONST_SIGMA}"
 
 # --- Parameter Sweeps Configuration ---
 # N_POINTS_GRID values to iterate over
-N_POINTS_GRID_VALUES=("801" "1601" "3201" "6401" "12801") # Example values
+N_POINTS_GRID_VALUES=("101" "201" "401" "801" "1601") # Example values
 
 # GAMMA values (in basis points, will be converted)
 GAMMA_BP_VALUES=("1" "5" "10" "30" "100")
@@ -53,7 +53,7 @@ P_EXPRESSIONS=(
     "1/(10*60)"       # approx. 0.001666
     "1/(2*60)"        # approx. 0.008333
     "1/12"            # approx. 0.083333
-    "1/0.5"             # 2
+    "1/2"             # 2
 )
 
 
@@ -96,7 +96,7 @@ for CURRENT_N_POINTS_GRID in "${N_POINTS_GRID_VALUES[@]}"; do
               CURRENT_P_PROB=$(echo "scale=10; ${P_EXPR}" | bc)
               export P_PROBABILITY="${CURRENT_P_PROB}"
 
-              is_p_valid=$(echo "${CURRENT_P_PROB} > 0 && ${CURRENT_P_PROB} < 1" | bc -l)
+              is_p_valid=$(echo "${CURRENT_P_PROB} > 0 && ${CURRENT_P_PROB} < 1000" | bc -l)
               if [ "$is_p_valid" -ne 1 ]; then
                   echo ""
                   echo "--- Skipping simulation due to invalid P_PROBABILITY ---"
