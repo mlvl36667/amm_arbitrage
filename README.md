@@ -80,3 +80,13 @@ The outputs of the execution are as follows:
 ```bash
 python3 generate_plots.py
 ```
+
+## Compare models
+
+```bash
+bash real_world_integrator.sh
+```
+
+```bash
+python3  compare_models.py
+```
