@@ -118,11 +118,11 @@ export NUM_ITERATIONS="1000" # num_iterations
 export N_POINTS_GRID="801"  # grid_points
 
 # Grid Parameters (exported for the C++ program) - ezeket is rögzítheted, ha szükséges
-export X_MIN="-0.02" # Maradhat ez, vagy állítsd be
-export X_MAX="0.02" # Maradhat ez, vagy állítsd be
+export X_MIN="-0.01" # Maradhat ez, vagy állítsd be
+export X_MAX="0.01" # Maradhat ez, vagy állítsd be
 
 # --- Q Values for Iteration ---
-Q_VALUES_TO_ITERATE=("0.0" "0.2" "0.4" "0.8")
+Q_VALUES_TO_ITERATE=("0.0" "0.05" "0.1" "0.2")
 
 
 # --- Script Start ---
