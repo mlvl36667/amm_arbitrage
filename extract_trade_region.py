@@ -1,140 +1,153 @@
 import os
 import re
-import glob
 
-def parse_filename_and_get_ratio(filepath):
+def format_duration_for_output(seconds_val):
     """
-    Extracts parameters from the filename and the ratio value from the file content.
-    Returns a dictionary with the parameters and the ratio, or None if there is an error
-    or if the P value is 0.05.
+    Másodpercben megadott időtartamot formáz olvashatóbbá.
+    Ha 60 mp felett van, akkor "X min Y sec" vagy "X min".
     """
-    filename = os.path.basename(filepath)
+    if not isinstance(seconds_val, (int, float)):
+        return str(seconds_val) # Pl. "N/A (P=0)"
 
-    match = re.match(
+    if seconds_val <= 0: # Kezeletlen vagy P=0 esetekhez
+        return f"{seconds_val:.2f} sec" if isinstance(seconds_val, float) else f"{seconds_val} sec"
+
+    if seconds_val > 60:
+        minutes = int(seconds_val // 60)
+        remaining_seconds = seconds_val % 60
+        
+        if abs(remaining_seconds) < 0.001: # Ha a maradék gyakorlatilag nulla
+            return f"{minutes} min"
+        else:
+            # Ha az eredeti másodperc egész volt, a maradék is az
+            if isinstance(seconds_val, int) or remaining_seconds.is_integer():
+                 return f"{minutes} min {int(remaining_seconds)} sec"
+            else:
+                 return f"{minutes} min {remaining_seconds:.2f} sec"
+    else:
+        if isinstance(seconds_val, int) or seconds_val.is_integer():
+            return f"{int(seconds_val)} sec"
+        else:
+            return f"{seconds_val:.2f} sec"
+
+def parse_filename_and_get_value_filtered_by_nit(directory="tails_ratios/", target_nit=16000):
+    results_for_output = [] 
+
+    filename_pattern = re.compile(
         r"tails_ratio_"
-        r"Q(?P<q_raw>0p0+)_"  # Matches Q0p0, Q0p00 etc. (Q=0.0)
-        r"P(?P<p_raw>[0-9p]+)_"
-        r"GP(?P<gp_raw>[0-9p]+)_"
-        r"GM(?P<gm_raw>[0-9p]+)_"
-        r"CS(?P<cs_raw>[0-9p]+)_"
-        r"CM(?P<cm_raw>[0-9p]+)\.txt",
-        filename
+        r"Q(?P<Q_val>[0-9]+p[0-9]+)_"
+        r"P(?P<P_val>[0-9]+p[0-9]+)_"
+        r"GP(?P<GP_val>[0-9]+p[0-9]+)_"
+        r"GM(?P<GM_val>[0-9]+p[0-9]+)_"
+        r"CS(?P<CS_val>[0-9]+p[0-9]+)_"
+        r"CM(?P<CM_val>[0-9]+p[0-9]+)_"
+        r"NPT(?P<NPT_val>[0-9]+)_"
+        r"NIT(?P<NIT_val>[0-9]+)"
+        r"\.txt"
     )
 
-    if not match:
-        return None
-
-    params = {}
-    raw_params = match.groupdict()
-
-    # Processing P (Probability) and filtering for 0.05
     try:
-        p_str_numeric = raw_params['p_raw'].replace('p', '.')
-        p_numeric = float(p_str_numeric)
+        filenames = os.listdir(directory)
+    except FileNotFoundError:
+        print(f"# Hiba: A '{directory}' könyvtár nem található.")
+        return results_for_output 
+    
+    filenames.sort()
+    processed_any_matching_nit = False
 
-        # Filter: If P value is 0.05, then skip this file
-        # When comparing floating-point numbers, it's good to use an epsilon
-        epsilon = 1e-9
-        if abs(p_numeric - 0.05) < epsilon:
-            # print(f"  Skipped (P=0.05): {filename}")
-            return None  # Skip this result
+    for filename in filenames:
+        match = filename_pattern.match(filename)
+        if match:
+            params_raw = match.groupdict()
+            params_processed = {}
+            current_nit_value = -1 
 
-        params['p_raw_str'] = raw_params['p_raw']  # Original string for P
-
-        if p_numeric != 0:
-            p_inv_seconds = 1.0 / p_numeric
-            if p_inv_seconds >= 60.0:
-                p_inv_minutes = p_inv_seconds / 60.0
-                if p_inv_minutes > 10000 or (p_inv_minutes < 0.001 and p_inv_minutes != 0):
-                    params['p_inv_formatted'] = f"{p_inv_minutes:.1e} min"
-                elif p_inv_minutes >= 10:
-                    params['p_inv_formatted'] = f"{p_inv_minutes:.1f} min"
-                else:
-                    params['p_inv_formatted'] = f"{p_inv_minutes:.2f} min"
-            else:
-                if p_inv_seconds > 10000 or (p_inv_seconds < 0.001 and p_inv_seconds != 0):
-                    params['p_inv_formatted'] = f"{p_inv_seconds:.1e} s"
-                elif p_inv_seconds >= 10:
-                    params['p_inv_formatted'] = f"{p_inv_seconds:.1f} s"
-                else:
-                    params['p_inv_formatted'] = f"{p_inv_seconds:.2f} s"
-        else:
-            params['p_inv_formatted'] = "inf"
-    except ValueError:
-        return None
-
-    # Processing GP (Gamma Plus)
-    try:
-        gp_str_numeric = raw_params['gp_raw'].replace('p', '.')
-        gp_numeric = float(gp_str_numeric)
-        params['gp_numeric_for_sort'] = gp_numeric  # Original numeric value for sorting
-        params['gp_bps'] = gp_numeric * 10000
-    except ValueError:
-        return None
-
-    # Reading tails ratio from the file
-    try:
-        with open(filepath, 'r') as f:
-            content = f.read().strip()
-            params['tails_ratio_percent'] = float(content)
-    except (IOError, ValueError):
-        params['tails_ratio_percent'] = "N/A" # Indicate if reading failed
-
-    return params
-
-
-def main():
-    search_dir = "./tails_ratios"
-
-    print(f"Searching for files in the '{search_dir}' directory (with Q=0.0 condition, P != 0.05)...")
-    print("-" * 70)
-    header = f"{'Gamma (GP) [bps]':<16} | {'P raw':<15} | {'1/P (time)':<12} | {'Tails Ratio (%)':<15}"
-    print(header)
-    print("-" * len(header))
-
-    results = []
-    processed_files_count = 0
-    skipped_p_equals_005_count = 0
-
-    # Find files matching the pattern for Q=0.0
-    for filepath in glob.glob(os.path.join(search_dir, 'tails_ratio_Q0p0*.txt')):
-        data = parse_filename_and_get_ratio(filepath)
-        if data:
-            results.append(data)
-            processed_files_count += 1
-        elif os.path.exists(filepath):  # If parse returned None, but the file exists
-            # Check if it was skipped due to P=0.05 (this is a simplified check for counting)
-            filename_temp = os.path.basename(filepath)
-            match_p_temp = re.search(r"P(?P<p_raw_temp>[0-9p]+)_", filename_temp)
-            if match_p_temp:
-                p_str_temp = match_p_temp.group('p_raw_temp').replace('p', '.')
+            for key, value_str in params_raw.items():
+                param_key_short = key.replace('_val', '')
+                if param_key_short in ['Q', 'P', 'GP', 'GM', 'CS', 'CM']:
+                    try:
+                        params_processed[param_key_short] = float(value_str.replace('p', '.'))
+                    except ValueError:
+                        params_processed[param_key_short] = None
+                elif param_key_short in ['NPT', 'NIT']:
+                    try:
+                        val_int = int(value_str)
+                        params_processed[param_key_short] = val_int
+                        if param_key_short == 'NIT':
+                            current_nit_value = val_int
+                    except ValueError:
+                        params_processed[param_key_short] = None
+            
+            if current_nit_value == target_nit:
+                processed_any_matching_nit = True
+                filepath = os.path.join(directory, filename)
                 try:
-                    if abs(float(p_str_temp) - 0.05) < 1e-9:
-                        skipped_p_equals_005_count += 1
+                    with open(filepath, 'r') as f:
+                        content = f.read().strip()
+                        trade_value = float(content)
+                    
+                    output_data = {"params": {}, "trade_region_value": trade_value}
+
+                    # P reciprok (másodpercben tárolva)
+                    p_value = params_processed.get('P')
+                    if p_value is not None:
+                        if p_value != 0:
+                            p_reciprocal = 1 / p_value
+                            output_data["params"]["P_reciprocal_seconds"] = p_reciprocal
+                        else:
+                            output_data["params"]["P_reciprocal_seconds"] = "N/A (P=0)"
+                    else:
+                         output_data["params"]["P_reciprocal_seconds"] = "N/A (P hiányzik)"
+                    
+                    # GP bázispontban (feltételezzük GP = GM)
+                    gp_value = params_processed.get('GP')
+                    if gp_value is not None:
+                        output_data["params"]["GP_bps"] = gp_value * 10000 
+                    
+                    results_for_output.append(output_data)
+
+                except FileNotFoundError:
+                    print(f"# Figyelmeztetés: A '{filepath}' fájl nem található.")
                 except ValueError:
-                    pass  # Could not verify the P value for skipping count
+                    print(f"# Figyelmeztetés: Nem sikerült a '{filepath}' tartalmát float értékké konvertálni: '{content}'")
+                except Exception as e:
+                    print(f"# Hiba a '{filepath}' fájl feldolgozása közben: {e}")
+    
+    if not processed_any_matching_nit and os.path.exists(directory):
+        print(f"# Nem található 'tails_ratio_*.txt' fájl a '{directory}' könyvtárban, amelynek NIT értéke {target_nit}.")
 
-    # Sort results by Gamma (numeric value) in ascending order
-    # Then secondarily by P raw string if gamma is the same (optional, but good for consistency)
-    results.sort(key=lambda x: (x.get('gp_numeric_for_sort', float('inf')), x.get('p_raw_str', '')))
-
-    for res in results:
-        gp_bps_display = f"{res.get('gp_bps', 0.0):.0f}"
-        p_raw_display = res.get('p_raw_str', 'N/A')
-        p_inv_display = res.get('p_inv_formatted', 'N/A')
-
-        ratio_value = res.get('tails_ratio_percent')
-        ratio_display = "N/A"
-        if isinstance(ratio_value, float):
-            ratio_display = f"{ratio_value:.5f}"
-
-        print(f"{gp_bps_display:<16} | {p_raw_display:<15} | {p_inv_display:<12} | {ratio_display:<15}")
-
-    print("-" * len(header))
-    print(f"Number of processed and printed results: {processed_files_count}")
-    if skipped_p_equals_005_count > 0:
-        print(f"Skipped files (due to P=0.05): {skipped_p_equals_005_count}")
-
+    return results_for_output
 
 if __name__ == "__main__":
-    main()
+    target_directory = "tails_ratios/"
+    nit_filter_value = 16000
+    
+    extracted_data = parse_filename_and_get_value_filtered_by_nit(target_directory, nit_filter_value)
+
+    if extracted_data:
+        for item_index, item in enumerate(extracted_data):
+            if item_index > 0: 
+                print("-" * 30) 
+
+            params = item['params']
+            
+            # P reciprokának (várakozási idő) kiírása formázva
+            p_reciprocal_sec_val = params.get("P_reciprocal_seconds", "N/A")
+            formatted_duration = format_duration_for_output(p_reciprocal_sec_val)
+            print(f"  Várakozási idő: {formatted_duration}")
+            
+            # GP kiírása bázispontban
+            if 'GP_bps' in params:
+                gp_bps_val = params['GP_bps']
+                # Ha a bázispont egész szám, ne írjunk ki felesleges tizedeseket
+                if isinstance(gp_bps_val, float) and gp_bps_val.is_integer():
+                    print(f"  GP (bps): {int(gp_bps_val)}")
+                elif isinstance(gp_bps_val, float):
+                     # Általában a bázispontot néhány tizedesjegyig érdemes kiírni, ha nem egész
+                    print(f"  GP (bps): {gp_bps_val:.2f}") # Módosítsd a .2f-et, ha más pontosság kell
+                else: # int
+                    print(f"  GP (bps): {gp_bps_val}")
+
+
+            # Trade Region Érték kiírása
+            print(f"  Trade Region Érték: {item['trade_region_value']:.8f}")
