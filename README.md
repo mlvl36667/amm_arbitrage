@@ -96,3 +96,15 @@ bash real_world_integrator.sh --no-q
 ```bash
 python3  compare_models.py
 ```
+## Observe convergence
+
+The convergence of the stationary density can be observed using the following two commands: 
+
+```bash
+bash density_iteration.sh
+```
+
+```bash
+python3 plot_density_iteration.py
+```
+
