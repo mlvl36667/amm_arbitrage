@@ -32,15 +32,14 @@ export CONST_SIGMA="0.05"
 # Grid and Iteration Parameters (exported for the C++ program)
 export X_MIN="-0.02" # Fixed X_MIN
 export X_MAX="0.02" # Fixed X_MAX
-# N_POINTS_GRID will be looped over
-export NUM_ITERATIONS="4000" # Fixed NUM_ITERATIONS
+export N_POINTS_GRID="801" # Fixed N_POINTS_GRID
 
 # Fixed SIGMA value (used for MU calculation and parameter sweeps)
 FIXED_SIGMA="${CONST_SIGMA}"
 
 # --- Parameter Sweeps Configuration ---
-# N_POINTS_GRID values to iterate over
-N_POINTS_GRID_VALUES=("101" "201" "401" "801" "1601") # Example values
+# NUM_ITERATIONS values to iterate over
+NUM_ITERATIONS_VALUES=("100" "500" "1000" "2000" "4000" "8000" "16000") # New iteration loop
 
 # GAMMA values (in basis points, will be converted)
 GAMMA_BP_VALUES=("1" "5" "10" "30" "100")
@@ -53,16 +52,16 @@ P_EXPRESSIONS=(
     "1/(10*60)"       # approx. 0.001666
     "1/(2*60)"        # approx. 0.008333
     "1/12"            # approx. 0.083333
-    "1/2"             # 2
+    "1/2"             # 0.5 (A te eredeti kommented "2" volt, de 1/2 = 0.5)
 )
 
 
 # --- Script Start ---
 echo "Starting simulation series with the following global settings:"
-echo "X_MIN: ${X_MIN}, X_MAX: ${X_MAX}, NUM_ITERATIONS: ${NUM_ITERATIONS}"
+echo "X_MIN: ${X_MIN}, X_MAX: ${X_MAX}, N_POINTS_GRID: ${N_POINTS_GRID}"
 echo "OMP_NUM_THREADS: ${OMP_NUM_THREADS}, CONST_SIGMA: ${CONST_SIGMA}"
 echo "Q_FOR_H will be fixed at: ${Q_VALUES[0]}"
-echo "N_POINTS_GRID will iterate through: ${N_POINTS_GRID_VALUES[*]}"
+echo "NUM_ITERATIONS will iterate through: ${NUM_ITERATIONS_VALUES[*]}"
 echo "---------------------------------------------------------------------"
 
 mkdir -p "${RESULTS_DIR}"
@@ -80,11 +79,11 @@ fi
 export CONST_MU=$(echo "scale=10; ${FIXED_SIGMA} * ${FIXED_SIGMA} / 2" | bc)
 
 # Update total_sims calculation
-total_sims=$(( ${#N_POINTS_GRID_VALUES[@]} * ${#GAMMA_BP_VALUES[@]} * ${#Q_VALUES[@]} * ${#P_EXPRESSIONS[@]} ))
+total_sims=$(( ${#NUM_ITERATIONS_VALUES[@]} * ${#GAMMA_BP_VALUES[@]} * ${#Q_VALUES[@]} * ${#P_EXPRESSIONS[@]} ))
 current_sim=0
 
-for CURRENT_N_POINTS_GRID in "${N_POINTS_GRID_VALUES[@]}"; do
-  export N_POINTS_GRID="${CURRENT_N_POINTS_GRID}" # Export current N_POINTS_GRID
+for CURRENT_NUM_ITERATIONS in "${NUM_ITERATIONS_VALUES[@]}"; do
+  export NUM_ITERATIONS="${CURRENT_NUM_ITERATIONS}" # Export current NUM_ITERATIONS
 
   for Q_H in "${Q_VALUES[@]}"; do # This loop will only run once for Q_H = "0.0"
     export Q_FOR_H="${Q_H}"
@@ -96,12 +95,14 @@ for CURRENT_N_POINTS_GRID in "${N_POINTS_GRID_VALUES[@]}"; do
               CURRENT_P_PROB=$(echo "scale=10; ${P_EXPR}" | bc)
               export P_PROBABILITY="${CURRENT_P_PROB}"
 
-              is_p_valid=$(echo "${CURRENT_P_PROB} > 0 && ${CURRENT_P_PROB} < 1000" | bc -l)
+              # A P_PROBABILITY ellenőrzése: 0 < P < 1 (a te eredeti kódod P < 1000-t ellenőrzött, de a valószínűségeknek 0 és 1 között kell lenniük)
+              # Ha a P_PROBABILITY tényleg lehet 1-nél nagyobb a te modelledben, akkor módosítsd ezt az ellenőrzést.
+              is_p_valid=$(echo "${CURRENT_P_PROB} > 0 && ${CURRENT_P_PROB} < 1" | bc -l)
               if [ "$is_p_valid" -ne 1 ]; then
                   echo ""
                   echo "--- Skipping simulation due to invalid P_PROBABILITY ---"
                   echo "Expression: ${P_EXPR} -> Calculated P: ${CURRENT_P_PROB}"
-                  echo "P_PROBABILITY must be > 0 and < 1."
+                  echo "P_PROBABILITY must be > 0 and < 1 (for standard probabilities)."
                   continue
               fi
 
@@ -112,12 +113,12 @@ for CURRENT_N_POINTS_GRID in "${N_POINTS_GRID_VALUES[@]}"; do
               sigma_fn=$(echo "${CONST_SIGMA}" | tr '.' 'p' | sed 's/-/neg/g')
               mu_fn=$(echo "${CONST_MU}" | tr '.' 'p' | sed 's/-/neg/g')
               gamma_fn=$(echo "${CURRENT_GAMMA}" | tr '.' 'p' | sed 's/-/neg/g')
-              q_h_fn=$(echo "${Q_FOR_H}" | tr '.' 'p')
+              q_h_fn=$(echo "${Q_FOR_H}" | tr '.' 'p') # Nincs szükség sed-re, mert Q_FOR_H=0.0
               p_prob_fn=$(echo "${P_PROBABILITY}" | tr '.' 'p' | sed 's/-/neg/g')
               xmin_fn=$(echo "${X_MIN}" | tr '.' 'p' | sed 's/-/neg/g')
               xmax_fn=$(echo "${X_MAX}" | tr '.' 'p' | sed 's/-/neg/g')
-              npoints_fn="${N_POINTS_GRID}" # Uses the currently exported N_POINTS_GRID
-              niter_fn="${NUM_ITERATIONS}"
+              npoints_fn="${N_POINTS_GRID}"
+              niter_fn="${NUM_ITERATIONS}" # Uses the currently exported NUM_ITERATIONS
 
               param_suffix_log_csv="S${sigma_fn}_M${mu_fn}_G${gamma_fn}_QH${q_h_fn}_P${p_prob_fn}_XMIN${xmin_fn}_XMAX${xmax_fn}_NPT${npoints_fn}_NIT${niter_fn}"
 
@@ -126,21 +127,23 @@ for CURRENT_N_POINTS_GRID in "${N_POINTS_GRID_VALUES[@]}"; do
               echo "  GAMMA: ${CURRENT_GAMMA} (GP: ${GAMMA_PLUS}, GM: ${GAMMA_MINUS})"
               echo "  Q_FOR_H: ${Q_FOR_H}, P_PROBABILITY: ${P_PROBABILITY}"
               echo "  X_MIN: ${X_MIN}, X_MAX: ${X_MAX}"
-              echo "  N_POINTS_GRID: ${N_POINTS_GRID}, NUM_ITERATIONS: ${NUM_ITERATIONS}" # N_POINTS_GRID is now from the loop
+              echo "  N_POINTS_GRID: ${N_POINTS_GRID}, NUM_ITERATIONS: ${NUM_ITERATIONS}"
               echo "  OMP_NUM_THREADS: ${OMP_NUM_THREADS}"
               echo "Log/CSV Suffix: ${param_suffix_log_csv}"
 
-              rm -f f_functions_output.csv
+              rm -f f_functions_output.csv # A C++ program ezt a nevet használja
 
               log_filename="log_${param_suffix_log_csv}.txt"
               log_path="${RESULTS_DIR}/${log_filename}"
-              rm -f "${log_path}"
+              rm -f "${log_path}" # Töröljük az előző futásból származó logot
 
               echo "Running solver... Saving log to: ${log_path}"
               if "${SOLVER_PROGRAM}" >"${log_path}" 2>&1; then
                   echo "Solver finished successfully."
               else
                   echo "ERROR: Solver program returned an error! Check log: ${log_path}"
+                  # Hiba esetén itt megállhat a szkript, ha szükséges:
+                  # exit 1
               fi
 
               if [ -f "f_functions_output.csv" ]; then
@@ -154,11 +157,12 @@ for CURRENT_N_POINTS_GRID in "${N_POINTS_GRID_VALUES[@]}"; do
           done
       done
     done
-done # End of N_POINTS_GRID_VALUES loop
+done # End of NUM_ITERATIONS_VALUES loop
 
 echo ""
 echo "Moving all generated .txt files (tails_ratio and extra_calc) to tails_ratios/ directory..."
-find . -maxdepth 1 -type f -name 'tails_ratio_Q*.txt' -exec mv -t tails_ratios/ {} + 2>/dev/null || echo "No tails_ratio files found to move or error during move."
-find . -maxdepth 1 -type f -name 'extra_calc_Q*.txt' -exec mv -t tails_ratios/ {} + 2>/dev/null || echo "No extra_calc files found to move or error during move."
+# Mivel a Q_FOR_H mindig 0.0, a fájlnevekben QH0p0 lesz
+find . -maxdepth 1 -type f -name 'tails_ratio_Q0p0*.txt' -exec mv -t tails_ratios/ {} + 2>/dev/null || echo "No tails_ratio_Q0p0 files found to move or error during move."
+find . -maxdepth 1 -type f -name 'extra_calc_Q0p0*.txt' -exec mv -t tails_ratios/ {} + 2>/dev/null || echo "No extra_calc_Q0p0 files found to move or error during move."
 
 echo "--- Simulation series finished ---"
