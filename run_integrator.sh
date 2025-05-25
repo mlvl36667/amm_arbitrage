@@ -1,27 +1,84 @@
 #!/bin/bash
 
 # Funkció a CPU magok számának lekérdezésére
-get_cpu_cores() {
+get_cpu_cores_physical() {
     local cores
-    if command -v nproc >/dev/null 2>&1; then
-        cores=$(nproc)
-    elif command -v sysctl >/dev/null 2>&1 && sysctl -n hw.logicalcpu >/dev/null 2>&1; then
-        cores=$(sysctl -n hw.logicalcpu)
+    # macOS
+    if command -v sysctl >/dev/null 2>&1 && sysctl -n hw.physicalcpu_max >/dev/null 2>&1; then # hw.physicalcpu_max a biztosabb újabb macOS-eken
+        cores=$(sysctl -n hw.physicalcpu_max)
+    elif command -v sysctl >/dev/null 2>&1 && sysctl -n hw.physicalcpu >/dev/null 2>&1; then # Régebbi macOS, vagy ha a _max nem elérhető
+        cores=$(sysctl -n hw.physicalcpu)
+    # Linux - lscpu a legmegbízhatóbb, ha elérhető
+    elif command -v lscpu >/dev/null 2>&1; then
+        # lscpu kimenetéből: Cores per socket * Sockets
+        local cores_per_socket=$(lscpu | grep -E "^Core\(s\) per socket:" | awk '{print $4}')
+        local sockets=$(lscpu | grep -E "^Socket\(s\):" | awk '{print $2}')
+        if [[ -n "$cores_per_socket" && -n "$sockets" && "$cores_per_socket" =~ ^[0-9]+$ && "$sockets" =~ ^[0-9]+$ ]]; then
+            cores=$((cores_per_socket * sockets))
+        else # Fallback, ha a fenti nem sikerül, próbálkozás a CPU(s) sorból a Core(s) per socket-tel
+              # Ez egy kicsit heurisztikusabb, egy socketes gépekre jó lehet
+            cores=$(lscpu -p=CORE | grep -v '^#' | sort -u | wc -l)
+            if ! [[ "$cores" =~ ^[0-9]+$ ]] || [ "$cores" -lt 1 ]; then
+                 # Végső lscpu fallback, ha minden más kudarcot vall lscpu-val
+                 # Ez a 'CPU(s)' sorból veszi a logikaiakat, és elosztja a 'Thread(s) per core'-ral
+                 local logical_cpus=$(lscpu | grep -E "^CPU\(s\):" | awk '{print $2}')
+                 local threads_per_core=$(lscpu | grep -E "^Thread\(s\) per core:" | awk '{print $4}')
+                 if [[ "$logical_cpus" =~ ^[0-9]+$ && "$threads_per_core" =~ ^[0-9]+$ && "$threads_per_core" -gt 0 ]]; then
+                     cores=$((logical_cpus / threads_per_core))
+                 else
+                     cores="" # Jelzi, hogy nem sikerült
+                 fi
+            fi
+        fi
+    # Linux - /sys/devices/system/cpu/cpu*/topology/core_id (másik megbízható módszer)
+    elif [ -d /sys/devices/system/cpu ]; then
+        # Számolja az egyedi core_id-kat a cpu topológiából
+        cores=$(find /sys/devices/system/cpu/cpu[0-9]*/topology/core_id -print0 2>/dev/null | xargs -0 cat 2>/dev/null | sort -u | wc -l)
+        if ! [[ "$cores" =~ ^[0-9]+$ ]] || [ "$cores" -lt 1 ]; then
+            cores="" # Ha a find/xargs/cat sor hibát ad vagy nem számot, töröljük
+        fi
+    # Linux - /proc/cpuinfo (kevésbé megbízható a fizikai magok számának direkt lekérdezésére több socket esetén)
     elif [ -f /proc/cpuinfo ]; then
-        cores=$(grep -c ^processor /proc/cpuinfo)
-    else
-        # Ha egyik sem működik, adjunk vissza egy alapértelmezett értéket (pl. 1)
-        # és írjunk ki egy figyelmeztetést a standard error kimenetre
-        echo "Figyelmeztetés: Nem sikerült automatikusan meghatározni a CPU magok számát. 1 mag lesz használva." >&2
-        cores=1
+        # Ez a módszer feltételezi, hogy a "cpu cores" sor minden fizikai CPU leírásában egyszer szerepel
+        # és az ott lévő érték az egy processzorban lévő magok száma. Több socket esetén össze kell adni.
+        # Egyszerűsítésként az első "cpu cores" értéket vesszük, ami egyprocesszoros rendszereken jó.
+        cores=$(grep -m1 "cpu cores" /proc/cpuinfo | awk '{print $4}')
+        # Ha több processzor van (socket), ez bonyolultabb:
+        # num_sockets=$(grep "physical id" /proc/cpuinfo | sort -u | wc -l)
+        # if [ "$num_sockets" -gt 1 ]; then
+        #    cores_per_socket_val=$(grep -m1 "cpu cores" /proc/cpuinfo | awk '{print $4}')
+        #    cores=$(( num_sockets * cores_per_socket_val ))
+        # fi
+        if ! [[ "$cores" =~ ^[0-9]+$ ]] || [ "$cores" -lt 1 ]; then
+            cores="" # Ha nem számot adott vissza
+        fi
     fi
-    # Biztosítjuk, hogy legalább 1 legyen az érték
+
+    # Végső ellenőrzés és alapértelmezett érték
     if ! [[ "$cores" =~ ^[0-9]+$ ]] || [ "$cores" -lt 1 ]; then
-        echo "Figyelmeztetés: Érvénytelen magszám ($cores) detektálva. 1 mag lesz használva." >&2
-        cores=1
+        echo "Figyelmeztetés: Nem sikerült meghatározni a FIZIKAI CPU magok számát. Fallback logikai magokra..." >&2
+        # Itt visszatérhetünk az eredeti logikai magokat lekérdező függvényhez, vagy beállíthatunk egy fix értéket
+        # Most az eredeti logikát használjuk fallbackként:
+        if command -v nproc >/dev/null 2>&1; then
+            cores=$(nproc)
+        elif command -v sysctl >/dev/null 2>&1 && sysctl -n hw.logicalcpu >/dev/null 2>&1; then
+            cores=$(sysctl -n hw.logicalcpu)
+        elif [ -f /proc/cpuinfo ]; then
+            cores=$(grep -c ^processor /proc/cpuinfo)
+        else
+            echo "Figyelmeztetés: A logikai magok száma sem határozható meg. 1 mag lesz használva." >&2
+            cores=1
+        fi
+
+        # Újabb ellenőrzés a fallback után
+        if ! [[ "$cores" =~ ^[0-9]+$ ]] || [ "$cores" -lt 1 ]; then
+            echo "Figyelmeztetés: Érvénytelen magszám (fallback után is). 1 mag lesz használva." >&2
+            cores=1
+        fi
     fi
     echo "$cores"
 }
+
 
 # Clean up previous results
 rm -rf *.txt
@@ -48,8 +105,9 @@ SOLVER_PROGRAM="./iteration_solver"
 RESULTS_DIR="simulation_results" # Directory to store detailed logs and CSVs
 
 # Core Simulation Parameters (exported for the C++ program)
-# CPU magok számának lekérdezése
-NUM_CORES=$(get_cpu_cores)
+NUM_CORES=$(get_cpu_cores_physical)
+export OMP_NUM_THREADS="$NUM_CORES"
+
 
 # OMP_NUM_THREADS beállítása és exportálása
 export OMP_NUM_THREADS="$NUM_CORES"
