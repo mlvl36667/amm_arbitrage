@@ -1,5 +1,28 @@
 #!/bin/bash
 
+# Funkció a CPU magok számának lekérdezésére
+get_cpu_cores() {
+    local cores
+    if command -v nproc >/dev/null 2>&1; then
+        cores=$(nproc)
+    elif command -v sysctl >/dev/null 2>&1 && sysctl -n hw.logicalcpu >/dev/null 2>&1; then
+        cores=$(sysctl -n hw.logicalcpu)
+    elif [ -f /proc/cpuinfo ]; then
+        cores=$(grep -c ^processor /proc/cpuinfo)
+    else
+        # Ha egyik sem működik, adjunk vissza egy alapértelmezett értéket (pl. 1)
+        # és írjunk ki egy figyelmeztetést a standard error kimenetre
+        echo "Figyelmeztetés: Nem sikerült automatikusan meghatározni a CPU magok számát. 1 mag lesz használva." >&2
+        cores=1
+    fi
+    # Biztosítjuk, hogy legalább 1 legyen az érték
+    if ! [[ "$cores" =~ ^[0-9]+$ ]] || [ "$cores" -lt 1 ]; then
+        echo "Figyelmeztetés: Érvénytelen magszám ($cores) detektálva. 1 mag lesz használva." >&2
+        cores=1
+    fi
+    echo "$cores"
+}
+
 # Clean up previous results
 rm -rf *.txt
 rm -rf tails_ratio_Q*
@@ -25,7 +48,11 @@ SOLVER_PROGRAM="./iteration_solver"
 RESULTS_DIR="simulation_results" # Directory to store detailed logs and CSVs
 
 # Core Simulation Parameters (exported for the C++ program)
-export OMP_NUM_THREADS=12
+# CPU magok számának lekérdezése
+NUM_CORES=$(get_cpu_cores)
+
+# OMP_NUM_THREADS beállítása és exportálása
+export OMP_NUM_THREADS="$NUM_CORES"
 export CONST_SIGMA="0.05"
 # MU is calculated based on CONST_SIGMA later
 
