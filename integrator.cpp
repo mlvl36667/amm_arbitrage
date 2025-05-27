@@ -649,7 +649,8 @@ int main() {
                                  << "_GM" << gamma_minus_param
                                  << "_CS" << const_sigma_param
                                  << "_CM" << const_mu_param
-                                 << "_NPT" << n_points_grid; // <<< ADDED N_POINTS_GRID HERE
+                                 << "_NPT" << n_points_grid // <<< ADDED N_POINTS_GRID HERE
+                                 << "_NIT" << num_iterations; // NUM_ITERATIONS
               std::string filename_body = filename_body_sstr.str();
               std::replace(filename_body.begin(), filename_body.end(), '.', 'p'); // Replace '.' with 'p'
               std::string ratio_filename = filename_body + ".txt";
