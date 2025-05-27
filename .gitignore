@@ -1,0 +1,5 @@
+iteration_solver
+extra_calc_*
+simulation_results/
+tails_ratios/
+*.pdf
