@@ -6,24 +6,51 @@ import glob # Import the glob module for listing files
 
 # List of filenames to process
 # Now dynamically collecting all CSV files from the current directory.
-# Only considering files where NIT = 1000 and NPT = 801.
+# Only considering files where NIT = 1000, NPT = 801, and Q = 0.5.
 all_csv_files = glob.glob('simulation_results/*.csv')
 filtered_filenames = []
 
-# Regex to extract NIT and NPT values
+# Regex to extract NIT, NPT, and Q values
 nit_regex = re.compile(r"_NIT(\d+)\.csv$")
 npt_regex = re.compile(r"_NPT(\d+)_")
+# Updated regex to extract Q value, now correctly looking for 'QH'
+q_regex = re.compile(r"_QH(?P<Q_val>[\d\w.]+)_P") # Corrected: now matches 'QH'
 
+# Define the desired Q value to filter by
+DESIRED_Q_VALUE = 0.2 # Changed to 0.2 based on your provided filenames
+
+print("\n--- Debugging File Filtering ---")
 for filename in all_csv_files:
+    print(f"Checking file: {filename}")
     nit_match = nit_regex.search(filename)
     npt_match = npt_regex.search(filename)
-    
-    if nit_match and npt_match:
-        nit_value = int(nit_match.group(1))
-        npt_value = int(npt_match.group(1))
-        
-        if nit_value == 1000 and npt_value == 801:
-            filtered_filenames.append(filename)
+    q_match = q_regex.search(filename) # Search for Q value
+
+    current_nit_value = None
+    current_npt_value = None
+    current_q_value = None
+
+    if nit_match:
+        current_nit_value = int(nit_match.group(1))
+    if npt_match:
+        current_npt_value = int(npt_match.group(1))
+    if q_match:
+        q_str = q_match.group('Q_val')
+        try:
+            current_q_value = float(q_str.replace('p', '.'))
+        except ValueError:
+            print(f"  Warning: Could not parse Q value '{q_str}' from {filename}")
+
+    print(f"  Parsed: NIT={current_nit_value}, NPT={current_npt_value}, Q={current_q_value}")
+    print(f"  Desired: NIT=1000, NPT=801, Q={DESIRED_Q_VALUE}")
+
+    if (current_nit_value == 1000 and 
+        current_npt_value == 801 and 
+        current_q_value == DESIRED_Q_VALUE):
+        print(f"  File {filename} MATCHES all conditions. Adding to list.")
+        filtered_filenames.append(filename)
+    else:
+        print(f"  File {filename} DOES NOT match all conditions.")
 
 filenames = filtered_filenames
 
@@ -119,7 +146,7 @@ def calculate_arb(p_val, gamma_val, t_values, f_values):
 results_data = []
 print("\n--- Calculation Results ---")
 if not filenames:
-    print("No CSV file in the current directory matches the 'NIT = 1000' and 'NPT = 801' conditions.")
+    print(f"No CSV file in the current directory matches the 'NIT = 1000', 'NPT = 801', and 'Q = {DESIRED_Q_VALUE}' conditions.")
 else:
     for filename in filenames:
         try:
@@ -151,6 +178,10 @@ else:
 if results_data:
     df_results = pd.DataFrame(results_data)
     
+    # Sort by p_reciprocal in descending order and then by Gamma in ascending order
+    # This ensures the desired row order (10 min, 2 min, 12 sec, 2 sec)
+    df_results = df_results.sort_values(by=['p_reciprocal', 'Gamma'], ascending=[False, True]).reset_index(drop=True)
+
     # Define mappings for display names
     gamma_display_map = {
         0.0001: '1 bp',
