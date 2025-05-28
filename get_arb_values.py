@@ -5,9 +5,9 @@ import os
 import glob # Import the glob module for listing files
 
 # List of filenames to process
-# Now dynamically collecting all CSV files from the current directory.
-# Only considering files where NIT = 1000, NPT = 801, and Q = 0.5.
-all_csv_files = glob.glob('simulation_results/*.csv')
+# Now dynamically collecting all CSV files from the current directory and its subdirectories.
+# Only considering files where NIT = 1000, NPT = 801, and Q = 0.2.
+all_csv_files = glob.glob('**/*.csv', recursive=True) # Changed to recursive globbing
 filtered_filenames = []
 
 # Regex to extract NIT, NPT, and Q values
@@ -146,7 +146,7 @@ def calculate_arb(p_val, gamma_val, t_values, f_values):
 results_data = []
 print("\n--- Calculation Results ---")
 if not filenames:
-    print(f"No CSV file in the current directory matches the 'NIT = 1000', 'NPT = 801', and 'Q = {DESIRED_Q_VALUE}' conditions.")
+    print(f"No CSV file in the current directory or its subdirectories matches the 'NIT = 1000', 'NPT = 801', and 'Q = {DESIRED_Q_VALUE}' conditions.")
 else:
     for filename in filenames:
         try:
@@ -221,10 +221,10 @@ if results_data:
     pivot_table.rename(columns=gamma_display_map, inplace=True)
     pivot_table.rename(index=p_reciprocal_display_map, inplace=True)
 
-    # Format the cell values using .map for deprecation warning fix
+    # Format the cell values using .applymap (reverted from .map)
     # Use f-string formatting for scientific notation if values are very small
     # Otherwise, format to 7 decimal places
-    formatted_table = pivot_table.map(lambda x: f"{x:.1e}" if abs(x) < 1e-4 and x != 0 else f"{x:.7f}")
+    formatted_table = pivot_table.applymap(lambda x: f"{x:.1e}" if abs(x) < 1e-4 and x != 0 else f"{x:.7f}")
 
     print("\n--- Sorted ARB Results Table ---")
     # Print the LaTeX-like table header
