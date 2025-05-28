@@ -108,3 +108,11 @@ bash density_iteration.sh
 python3 plot_density_iteration.py
 ```
 
+## Get arbitrage profits
+
+You have to run the integrator with ` bash run_integrator.sh` to first get the iterated densities, then you can run the following script to extract arbitrage profits. You have to set NIT and NPT accordingly so that `get_arb_values.py` finds the necessary files for its calculations.
+
+```bash
+python3 get_arb_values.py
+```
+
